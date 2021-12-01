@@ -922,7 +922,7 @@ void LSeekFiber::CircleFitting(double* FFSingeX, double* FFSingeY, double* cente
 		double yCenter = -0.5 * b;
 		double ra = 0.5 * sqrt(a * a + b * b - 4 * c);
 		*radius = ra;
-		*centerX = yCenter;
+		*centerX = yCenter; 
 		*centerY = xCenter;
 
 		//2.计算均值和方差
