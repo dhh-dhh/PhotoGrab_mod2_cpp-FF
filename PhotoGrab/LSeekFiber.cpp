@@ -9,10 +9,15 @@ using namespace Eigen::Architecture;
 #include "stdafx.h"
 #include "LSeekFiber.h"
 
+#include <iostream>
 #include "math.h"
 #include <string>
 #include <fstream>
 #include <vector> 
+#include <set>
+#include <algorithm>
+#include<numeric>
+
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -114,10 +119,19 @@ BOOL LSeekFiber::GetFFLilun() //放入相機初始化中
 	{
 		fscanf_s(FFLiLunFile, "%lf %lf", &FFLilunX[numQL], &FFLilunY[numQL]);//读取Q的理论坐标
 		numQL++;
-		fgets(buf, 100, FFLiLunFile);
+		//fgets(buf, 100, FFLiLunFile);
 		c = fgetc(FFLiLunFile);//防止多读一次
+
 	}
 	fclose(FFLiLunFile);
+
+	//double test1;
+	//double test2;
+	//for (int i = 0; i < numQL; i++)
+	//{
+	//	test1 = FFLilunX[i];
+	//	test2 = FFLilunY[i];
+	//}
 	return true;
 }
 
@@ -436,6 +450,7 @@ BOOL LSeekFiber::SeekPoints(CString fn)  //计算所有光点的像素坐标
 {
 #define MAP(i,j) lpRawBuffer[(i)*intImageHeight+ (j)]
 
+	
 	if (!ReadZBdata(fn))	return FALSE;
 
 	int p,q,g;
@@ -459,6 +474,24 @@ BOOL LSeekFiber::SeekPoints(CString fn)  //计算所有光点的像素坐标
 		ZeroMemory(intNum1,intMemAlloc*4);//it's essential
 
 		intCounter=0;
+
+		//阈值筛选
+		long long meanGray = 0;
+		for (int row = 0; row < intImageWidth; ++row)
+		{
+			for (int col = 0; col < intImageHeight; ++col)
+			{
+				int t = MAP(row, col);
+				meanGray += MAP(row, col);
+			}
+		}
+		meanGray /= (intImageWidth * intImageHeight);
+		//int meanGray1 = std::accumulate(lpRawBuffer.begin(), lpRawBuffer.end(), 0)/ (intImageWidth * intImageHeight);
+
+		intBKThreshold = min((int)(meanGray * 2), intBKThreshold);
+		intLightThreshold = max(intBKThreshold,min((int)(meanGray * 4), intLightThreshold));
+		
+
 		for (i = 0; i < intImageWidth; i++)
 		{
 			for (j = 0; j<intImageHeight; j++)
@@ -526,14 +559,13 @@ BOOL LSeekFiber::SeekPoints(CString fn)  //计算所有光点的像素坐标
 		intLightNum = intCounter;//实际的点数
 
 		//SortPoints();
-		//从circle txt文件找到像素坐标，进行圆心拟合，结果存放在变量 &centerX[i], &centerY[i] 中
-		//從 
+		//从 circle txt文件找到像素坐标，进行圆心拟合，结果存放在变量 &centerX[i], &centerY[i] 中
 		FindQ();
 		//像素坐标进行粗匹配参数（5参数）匹配
 		CaliPoints();
 		SortPoints2(); //排序计算
 		str =(LPCSTR)(rawfn.Left(rawfn.GetLength() - 4) + ".txt");
-		//写匹配好的坐标文件
+		//写匹配好的坐标文件 像素坐标
 		WriteTxtData(str);
 		//TxtReadQ(str);
 
@@ -554,6 +586,18 @@ BOOL LSeekFiber::SeekPoints(CString fn)  //计算所有光点的像素坐标
 void LSeekFiber::NiheParamCpp(int biaoding)
 {
 	int Num = intQNum;
+	//进一步筛选Q值，防止参数拟合错误
+	//vector<double> dis(intQNum, 0);
+	//double pixcelDisThreshold = 50.0;
+	for (int i = 0; i < intQNum; i++)
+	{
+		//dis[i]=sqrt((FFCircleX[i]- pixelQCoorX[i])* (FFCircleX[i] - pixelQCoorX[i])+ (FFCircleY[i]- pixelQCoorY[i])* (FFCircleY[i] - pixelQCoorY[i]));
+		if (radius[i] == -1.0)
+		{
+			Num--;
+		}
+	}
+	
 	MatrixXd x(Num, 1);
 	MatrixXd y(Num, 1);
 	MatrixXd lilun_x(Num, 1);
@@ -565,12 +609,30 @@ void LSeekFiber::NiheParamCpp(int biaoding)
 	MatrixXd BX(biaoding/2, 1);
 	MatrixXd BY(biaoding/2, 1);
 
-	for (int i = 0; i < Num; i++)
+	for (int i = 0,j=0; i < intQNum; i++)
 	{
-		x(i,0) = pixelQCoorX[i];
-		y(i, 0) = pixelQCoorY[i];
-		lilun_x(i, 0) = FFLilunX[i];
-		lilun_y(i, 0) = FFLilunY[i];
+		if (radius[i] == -1.0)
+		{
+			continue;
+		}
+		else
+		{
+			x(j, 0) = pixelQCoorX[i];
+			y(j, 0) = pixelQCoorY[i];
+			lilun_x(j, 0) = FFLilunX[i];
+			lilun_y(j, 0) = FFLilunY[i];
+			j++;
+		}
+		
+		
+		//lilun_x(i, 0) = dblQCoorX[i];
+		//lilun_y(i, 0) = dblQCoorY[i];
+		
+		//double test3 = dblQCoorX[i];
+		//double test4 = dblQCoorY[i];
+		
+		//double test1 = FFLilunX[i];
+		//double test2 = FFLilunY[i];
 	}
 
 	if (biaoding == 6)
@@ -681,6 +743,16 @@ void LSeekFiber::PixelToMicron(int biaoding)
 				+ paramY[9] * pow(pixelPCoorY[i], 3)) ;
 		}
 	}
+	else if (biaoding == 6)
+	{
+		for (int i = 0; i < intPNum; i++)
+		{
+			micronPCoorX[i] = (paramX[0] + paramX[1] * pixelPCoorX[i] + paramX[2] * pixelPCoorY[i] + paramX[3] * pixelPCoorX[i] * pixelPCoorX[i] + paramX[4] * pixelPCoorX[i] * pixelPCoorY[i]\
+				+ paramX[5] * pixelPCoorY[i] * pixelPCoorY[i]);
+			micronPCoorY[i] = (paramY[0] + paramY[1] * pixelPCoorX[i] + paramY[2] * pixelPCoorY[i] + paramY[3] * pixelPCoorX[i] * pixelPCoorX[i] + paramY[4] * pixelPCoorX[i] * pixelPCoorY[i]\
+				+ paramY[5] * pixelPCoorY[i] * pixelPCoorY[i] );
+		}
+	}
 	return;
 }
 
@@ -698,12 +770,12 @@ void LSeekFiber::WriteMicronTxtData(CString str)
 	for (i = 0; i < intPNum; i++)
 	{
 		fprintf_s(ff, "%s\t%12.6f\t%12.6f\t%12.6f\t%12.6f\n",
-			sCellName[i].c_str(), micronPCoorX[i], micronPCoorY[i], pixelPCoorX[i], pixelPCoorY[i]);
+			sCellNameP[i].c_str(), micronPCoorX[i], micronPCoorY[i], pixelPCoorX[i], pixelPCoorY[i]);
 	}
 	for (; i < intPNum+intQNum; i++)
 	{
 		fprintf_s(ff, "%s\t%12.6f\t%12.6f\t%12.6f\t%12.6f\n", 
-			sCellName[i].c_str(), dblQCoorX[i - intPNum], dblQCoorY[i - intPNum], pixelQCoorX[i- intPNum], pixelQCoorY[i- intPNum]);
+			sCellNameQ[i- intPNum].c_str(), dblQCoorX[i - intPNum], dblQCoorY[i - intPNum], pixelQCoorX[i- intPNum], pixelQCoorY[i- intPNum]);
 	}
 	fclose(ff);
 	return ;
@@ -790,52 +862,150 @@ void LSeekFiber::FindQ()
 			}
 		}
 		CircleFitting(FFSingeX, FFSingeY, &centerX[i], &centerY[i], &radius[i]); //CircleFitting
+		//加入Q的距离判断，如果大于阈值pixcelDisThreshold ，则不参与匹配
+		double disRight = sqrt((centerX[i] - FFCircleX[i]) * (centerX[i] - FFCircleX[i])+ (centerY[i] - FFCircleY[i]) * (centerY[i] - FFCircleY[i]));
+		if (_isnan(disRight) || disRight > pixcelDisThreshold)
+		{
+			//centerX[i] = -1.0; centerY[i] = -1.0; 
+			radius[i] = -1.0;
+		}
 	}
 	return;
 }
+
+
 void LSeekFiber::CircleFitting(double* FFSingeX, double* FFSingeY, double* centerX, double* centerY, double* radius)
 {
-	double sumX = 0, sumY = 0;
-	double sumXX = 0, sumYY = 0, sumXY = 0;
-	double sumXXX = 0, sumXXY = 0, sumXYY = 0, sumYYY = 0;
-	int i = 0;
-	while (FFSingeX[i] != 0)
+	std::set<int> deleteIndexSet; //剔除光点下标集合
+	double distanceSigma = DBL_MAX;
+	double distanceSigmaThreshold = 0.5;  //方差的阈值
+	do
 	{
-		double p0 = FFSingeY[i];
-		double p1 = FFSingeX[i];
+		//1.先拟合圆心数据
+		double sumX = 0, sumY = 0;
+		double sumXX = 0, sumYY = 0, sumXY = 0;
+		double sumXXX = 0, sumXXY = 0, sumXYY = 0, sumYYY = 0;
+		int i = 0;
+		while (FFSingeX[i] != 0)
+		{
+			if (deleteIndexSet.count(i))
+			{
+				i++;
+				continue;
+			}
+			double p0 = FFSingeY[i];
+			double p1 = FFSingeX[i];
+			sumX += p0;
+			sumY += p1;
+			sumXX += p0 * p0;
+			sumYY += p1 * p1;
+			sumXY += p0 * p1;
+			sumXXX += p0 * p0 * p0;
+			sumXXY += p0 * p0 * p1;
+			sumXYY += p0 * p1 * p1;
+			sumYYY += p1 * p1 * p1;
+			i++;
+		}
+		int pCount = i - deleteIndexSet.size();
+		double M1 = pCount * sumXY - sumX * sumY;
+		double M2 = pCount * sumXX - sumX * sumX;
+		double M3 = pCount * (sumXXX + sumXYY) - sumX * (sumXX + sumYY);
+		double M4 = pCount * sumYY - sumY * sumY;
+		double M5 = pCount * (sumYYY + sumXXY) - sumY * (sumXX + sumYY);
 
-		sumX += p0;
-		sumY += p1;
-		sumXX += p0 * p0;
-		sumYY += p1 * p1;
-		sumXY += p0 * p1;
-		sumXXX += p0 * p0 * p0;
-		sumXXY += p0 * p0 * p1;
-		sumXYY += p0 * p1 * p1;
-		sumYYY += p1 * p1 * p1;
-		i++;
-	}
+		double a = (M1 * M5 - M3 * M4) / (M2 * M4 - M1 * M1);
+		double b = (M1 * M3 - M2 * M5) / (M2 * M4 - M1 * M1);
+		double c = -(a * sumX + b * sumY + sumXX + sumYY) / pCount;
 
-	int pCount = i;
-	double M1 = pCount * sumXY - sumX * sumY;
-	double M2 = pCount * sumXX - sumX * sumX;
-	double M3 = pCount * (sumXXX + sumXYY) - sumX * (sumXX + sumYY);
-	double M4 = pCount * sumYY - sumY * sumY;
-	double M5 = pCount * (sumYYY + sumXXY) - sumY * (sumXX + sumYY);
+		//圆心XY 半径
+		double xCenter = -0.5 * a;
+		double yCenter = -0.5 * b;
+		double ra = 0.5 * sqrt(a * a + b * b - 4 * c);
+		*radius = ra;
+		*centerX = yCenter;
+		*centerY = xCenter;
 
-	double a = (M1 * M5 - M3 * M4) / (M2 * M4 - M1 * M1);
-	double b = (M1 * M3 - M2 * M5) / (M2 * M4 - M1 * M1);
-	double c = -(a * sumX + b * sumY + sumXX + sumYY) / pCount;
+		//2.计算均值和方差
+		int k = 0;
+		std::vector<double> distanceList;
+		while (FFSingeX[k] != 0)
+		{
+			if (deleteIndexSet.count(k))
+			{
+				k++;
+				continue;
+			}
+			double dist = sqrt((FFSingeX[k] - yCenter) * (FFSingeX[k] - yCenter) + (FFSingeY[k] - xCenter) * (FFSingeY[k] - xCenter));
+			distanceList.push_back(dist);
+			k++;
+		}
+		k = distanceList.size();
+		double sum = std::accumulate(std::begin(distanceList), std::end(distanceList), 0.0);
+		double mean = sum / k; //均值
+		double accum = 0.0;
+		std::for_each(std::begin(distanceList), std::end(distanceList), [&](const double d) {
+			accum += (d - mean) * (d - mean);
+		});
+		distanceSigma = sqrt(accum / k); //方差
 
-	//圆心XY 半径
-	double xCenter = -0.5 * a;
-	double yCenter = -0.5 * b;
-	double ra = 0.5 * sqrt(a * a + b * b - 4 * c);
-	*radius = ra;
-	*centerX = yCenter;
-	*centerY = xCenter;
+		//3.根据方差去剔除
+		if (distanceSigma <= distanceSigmaThreshold) break;
+		for (int i = 0; i < distanceList.size(); i++)
+		{
+			if (distanceList[i] < mean - 3 * distanceSigma || distanceList[i] > mean + 3 * distanceSigma)
+			{
+				deleteIndexSet.insert(i);
+			}
+		}
+		
+	} 
+	while (distanceSigma > distanceSigmaThreshold);
 	return;
 }
+
+//void LSeekFiber::CircleFitting_old(double* FFSingeX, double* FFSingeY, double* centerX, double* centerY, double* radius)
+//{
+//	double sumX = 0, sumY = 0;
+//	double sumXX = 0, sumYY = 0, sumXY = 0;
+//	double sumXXX = 0, sumXXY = 0, sumXYY = 0, sumYYY = 0;
+//	int i = 0;
+//	while (FFSingeX[i] != 0)
+//	{
+//		double p0 = FFSingeY[i];
+//		double p1 = FFSingeX[i];
+//
+//		sumX += p0;
+//		sumY += p1;
+//		sumXX += p0 * p0;
+//		sumYY += p1 * p1;
+//		sumXY += p0 * p1;
+//		sumXXX += p0 * p0 * p0;
+//		sumXXY += p0 * p0 * p1;
+//		sumXYY += p0 * p1 * p1;
+//		sumYYY += p1 * p1 * p1;
+//		i++;
+//	}
+//
+//	int pCount = i;
+//	double M1 = pCount * sumXY - sumX * sumY;
+//	double M2 = pCount * sumXX - sumX * sumX;
+//	double M3 = pCount * (sumXXX + sumXYY) - sumX * (sumXX + sumYY);
+//	double M4 = pCount * sumYY - sumY * sumY;
+//	double M5 = pCount * (sumYYY + sumXXY) - sumY * (sumXX + sumYY);
+//
+//	double a = (M1 * M5 - M3 * M4) / (M2 * M4 - M1 * M1);
+//	double b = (M1 * M3 - M2 * M5) / (M2 * M4 - M1 * M1);
+//	double c = -(a * sumX + b * sumY + sumXX + sumYY) / pCount;
+//
+//	//圆心XY 半径
+//	double xCenter = -0.5 * a;
+//	double yCenter = -0.5 * b;
+//	double ra = 0.5 * sqrt(a * a + b * b - 4 * c);
+//	*radius = ra;
+//	*centerX = yCenter;
+//	*centerY = xCenter;
+//	return;
+//}
 
 /*
 	名称：cpp
