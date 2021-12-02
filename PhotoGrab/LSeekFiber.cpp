@@ -488,7 +488,7 @@ BOOL LSeekFiber::SeekPoints(CString fn)  //计算所有光点的像素坐标
 		meanGray /= (intImageWidth * intImageHeight);
 		//int meanGray1 = std::accumulate(lpRawBuffer.begin(), lpRawBuffer.end(), 0)/ (intImageWidth * intImageHeight);
 
-		intBKThreshold = min((int)(meanGray * 2), intBKThreshold);
+		intBKThreshold = max((int)(meanGray * 1.2), intBKThreshold);
 		intLightThreshold = max(intBKThreshold,min((int)(meanGray * 4), intLightThreshold));
 		
 
