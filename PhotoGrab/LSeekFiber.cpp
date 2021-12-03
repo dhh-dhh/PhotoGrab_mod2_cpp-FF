@@ -87,11 +87,11 @@ BOOL LSeekFiber::Init()
 		AfxMessageBox(_T("Failed to allocate memory."));
 		return FALSE;
 	}
-	if (!Py_IsInitialized())
-	{
-		printf("初始化失败！");
-		return FALSE;
-	}
+	//if (!Py_IsInitialized())
+	//{
+	//  AfxMessageBox(_T("Failed to Py_IsInitialized."));
+	//	return FALSE;
+	//}
 	if (!GetFFLilun())
 	{
 		AfxMessageBox(_T("Failed to read FFLilun file."));
@@ -238,9 +238,13 @@ BOOL LSeekFiber::MemAlloc()
 	if (!FFLilunX)return FALSE;
 	FFLilunY = new double[intMemAlloc];
 	if (!FFLilunY)return FALSE;
+	micronQCoorX = new double[intMemAlloc];
+	if (!micronQCoorX)return FALSE;
+	micronQCoorY = new double[intMemAlloc];
+	if (!micronQCoorY)return FALSE;
 
-	Py_SetPythonHome(L"D:\\anaconda");  //系统的python路径
-	Py_Initialize();			//使用python之前，要调用Py_Initialize();这个函数进行初始化 
+	//Py_SetPythonHome(L"D:\\anaconda");  //系统的python路径
+	//Py_Initialize();			//使用python之前，要调用Py_Initialize();这个函数进行初始化 
 
 	//double* pixelPCoorX;					//工作光纤点角度坐标，intPNum个，预存
 	//double* pixelPCoorY;					//工作光纤点角度坐标，intPNum个，预存
@@ -298,7 +302,7 @@ void LSeekFiber::MemRelease()
 	if (pixelQCoorY)delete[] pixelQCoorY;
 	if (temp)delete[] temp;
 	
-	Py_Finalize(); //释放资源 (已转移)
+	//Py_Finalize(); //释放资源 (已转移)
 	//Py_Finalize(); //释放资源 (已转移)
 
 
@@ -317,6 +321,9 @@ void LSeekFiber::MemRelease()
 
 	if (FFLilunX)delete[] FFLilunX;
 	if (FFLilunY)delete[] FFLilunY;
+	if (micronQCoorX)delete[] micronQCoorX;
+	if (micronQCoorY)delete[] micronQCoorY;
+	
 }
 
 BOOL LSeekFiber::GetConfig()
@@ -742,6 +749,15 @@ void LSeekFiber::PixelToMicron(int biaoding)
 				+ paramY[5] * pixelPCoorY[i] * pixelPCoorY[i] + paramY[6] * pow(pixelPCoorX[i], 3) + paramY[7] * pow(pixelPCoorX[i], 2) * pixelPCoorY[i] + paramY[8] * pixelPCoorX[i] * pow(pixelPCoorY[i], 2)\
 				+ paramY[9] * pow(pixelPCoorY[i], 3)) ;
 		}
+		for (int i = 0; i < intQNum; i++)
+		{
+			micronQCoorX[i] = (paramX[0] + paramX[1] * pixelQCoorX[i] + paramX[2] * pixelQCoorY[i] + paramX[3] * pixelQCoorX[i] * pixelQCoorX[i] + paramX[4] * pixelQCoorX[i] * pixelQCoorY[i]\
+				+ paramX[5] * pixelQCoorY[i] * pixelQCoorY[i] + paramX[6] * pow(pixelQCoorX[i], 3) + paramX[7] * pow(pixelQCoorX[i], 2) * pixelQCoorY[i] + paramX[8] * pixelQCoorX[i] * pow(pixelQCoorY[i], 2)\
+				+ paramX[9] * pow(pixelQCoorY[i], 3));
+			micronQCoorY[i] = (paramY[0] + paramY[1] * pixelQCoorX[i] + paramY[2] * pixelQCoorY[i] + paramY[3] * pixelQCoorX[i] * pixelQCoorX[i] + paramY[4] * pixelQCoorX[i] * pixelQCoorY[i]\
+				+ paramY[5] * pixelQCoorY[i] * pixelQCoorY[i] + paramY[6] * pow(pixelQCoorX[i], 3) + paramY[7] * pow(pixelQCoorX[i], 2) * pixelQCoorY[i] + paramY[8] * pixelQCoorX[i] * pow(pixelQCoorY[i], 2)\
+				+ paramY[9] * pow(pixelQCoorY[i], 3));
+		}
 	}
 	else if (biaoding == 6)
 	{
@@ -769,13 +785,20 @@ void LSeekFiber::WriteMicronTxtData(CString str)
 
 	for (i = 0; i < intPNum; i++)
 	{
-		fprintf_s(ff, "%s\t%12.6f\t%12.6f\t%12.6f\t%12.6f\n",
-			sCellNameP[i].c_str(), micronPCoorX[i], micronPCoorY[i], pixelPCoorX[i], pixelPCoorY[i]);
+		fprintf_s(ff, "%s\t%12.6f\t%12.6f\t%12.6f\t%12.6f\n",sCellNameP[i].c_str(), micronPCoorX[i], micronPCoorY[i], pixelPCoorX[i], pixelPCoorY[i]);
 	}
-	for (; i < intPNum+intQNum; i++)
+	for (i=0; i < intQNum; i++)
 	{
-		fprintf_s(ff, "%s\t%12.6f\t%12.6f\t%12.6f\t%12.6f\n", 
-			sCellNameQ[i- intPNum].c_str(), dblQCoorX[i - intPNum], dblQCoorY[i - intPNum], pixelQCoorX[i- intPNum], pixelQCoorY[i- intPNum]);
+		double dis = sqrt((micronQCoorX[i] - FFLilunX[i]) * (micronQCoorX[i] - FFLilunX[i]) + (micronQCoorY[i] - FFLilunY[i]) * (micronQCoorY[i] - FFLilunY[i]));
+		if (dis < 3000.0)
+		{
+			fprintf_s(ff, "%s\t%12.6f\t%12.6f\t%12.6f\t%12.6f\n", sCellNameQ[i].c_str(), micronQCoorX[i], micronQCoorY[i], pixelQCoorX[i], pixelQCoorY[i]);
+		}
+		else
+		{
+			fprintf_s(ff, "%s\t%12.6f\t%12.6f\t%12.6f\t%12.6f\n", sCellNameQ[i].c_str(), FFLilunX[i], FFLilunY[i], pixelQCoorX[i], pixelQCoorY[i]);
+		}
+		
 	}
 	fclose(ff);
 	return ;

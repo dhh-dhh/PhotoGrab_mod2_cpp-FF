@@ -95,6 +95,8 @@ protected:
 	double* pixelPCoorY;					//工作光纤点角度坐标，intPNum个，预存
 	double* micronPCoorX;					//工作光纤点微米坐标，intPNum个，预存
 	double* micronPCoorY;					//工作光纤点微米坐标，intPNum个，预存
+	double* micronQCoorX;					//参考光纤点微米坐标，intQNum个，预存
+	double* micronQCoorY;					//参考光纤点微米坐标，intQNum个，预存
 	double* dblQCoorX;				//参考光纤理论坐标，intQNum个，预存
 	double* dblQCoorY;				//参考光纤理论坐标，intQNum个，预存
 	double* dblQCenA;					//参考光纤点角度坐标，intQNum个，预存
@@ -138,7 +140,7 @@ protected:
 	double* FFCircleY;
 	double FFCMax = 85;//FF圆最大探查半径
 	double FFCMin = 74;//FF圆最小探查半径
-	double pixcelDisThreshold = 4.0; //Q值判断正确与粗匹配距离
+	double pixcelDisThreshold = 10.0; //Q值判断正确与粗匹配距离
 	double* FFSingeX;
 	double* FFSingeY;
 	double* centerX;//FF圆心像素坐标
