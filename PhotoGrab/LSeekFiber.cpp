@@ -785,7 +785,15 @@ void LSeekFiber::WriteMicronTxtData(CString str)
 
 	for (i = 0; i < intPNum; i++)
 	{
-		fprintf_s(ff, "%s\t%12.6f\t%12.6f\t%12.6f\t%12.6f\n",sCellNameP[i].c_str(), micronPCoorX[i], micronPCoorY[i], pixelPCoorX[i], pixelPCoorY[i]);
+		if (pixelPCoorX[i] == 0.0 && pixelPCoorY[i] == 0)
+		{
+			fprintf_s(ff, "%s\t%12.6f\t%12.6f\t%12.6f\t%12.6f\n", sCellNameP[i].c_str(), 0.0, 0.0, pixelPCoorX[i], pixelPCoorY[i]);
+		}
+		else
+		{
+			fprintf_s(ff, "%s\t%12.6f\t%12.6f\t%12.6f\t%12.6f\n", sCellNameP[i].c_str(), micronPCoorX[i], micronPCoorY[i], pixelPCoorX[i], pixelPCoorY[i]);
+		}
+		
 	}
 	for (i=0; i < intQNum; i++)
 	{
@@ -891,6 +899,16 @@ void LSeekFiber::FindQ()
 		{
 			//centerX[i] = -1.0; centerY[i] = -1.0; 
 			radius[i] = -1.0;
+		}
+		for (int j=0; j < intLightNum; j++)
+		{
+			//double a = dblCoorX[i];
+			double disDel= sqrt((centerX[i] - dblCoorX[j]) * (centerX[i] - dblCoorX[j]) + (centerY[i] - dblCoorY[j]) * (centerY[i] - dblCoorY[j]));
+			if (disDel< (FFCMax+10))
+			{
+				dblCoorX[j] = 0;
+				dblCoorY[j] = 0;
+			}
 		}
 	}
 	return;
@@ -1196,6 +1214,7 @@ BOOL LSeekFiber::ReadZBdata(CString strFileName)
 	char buf[100] = {0};
 	intUnitNum=0;
 	intSolidNum=0;
+	intQNum0 = 0;
 	sCellName = {};
 	char c;
 	c = fgetc(fid);
@@ -1226,6 +1245,10 @@ BOOL LSeekFiber::ReadZBdata(CString strFileName)
 				fscanf_s(fid,"%lf %lf",&dblZBCenA[intUnitNum],&dblZBEccA[intUnitNum]);
 				intUnitNum++;
 				intSolidNum++;
+			}
+			if (cell == 'Q')
+			{
+				intQNum0++;
 			}
 
 		}
@@ -1351,7 +1374,7 @@ BOOL LSeekFiber::WriteTxtData(CString strFileName)
 			sCellName[i].c_str(), dblX1[i], dblY1[i], intNum1[i], intMM1[i], dblCoorX1[i], dblCoorY1[i], dblZBCoorX[i], dblZBCoorY[i], dblZBCenA[i], dblZBEccA[i],
 			dblCoorX[i] - xx, dblCoorY[i] - yy, ddd);
 	}
-	for (;i<intLightNum;i++)
+	for (;i<intLightNum-(intUnitNum- intQNum0);i++)
 	{
 		//strTemp.Format(_T(" nouse\t%12.6f\t%12.6f\t%5d\t%5d\t%15.6f\t%15.6f\n"),dblX1[i],dblY1[i],intNum1[i],intMM1[i],dblCoorX1[i],dblCoorY1[i]);
 		//strPrint = strPrint + strTemp;
@@ -1493,16 +1516,18 @@ void LSeekFiber::SortPoints2()
 	//calc dblDist and get dblDist1
 	int nn=0;
 	for (i=0;i<intUnitNum;i++)
+	{ 
 		for (j=0;j<intLightNum;j++)
-	{
-		dblDist[i*intLightNum+j]= (dblCoorX[j] - dblZBCoorX[i])*(dblCoorX[j] - dblZBCoorX[i])
-				+ (dblCoorY[j] - dblZBCoorY[i])*(dblCoorY[j] - dblZBCoorY[i]);
-		if(dblDist[i*intLightNum+j]<dblMaxDouble1)
 		{
-			dblDist1[nn]=dblDist[i*intLightNum+j];
-			dblDistM[nn]=i; //i表示单元
-			dblDistN[nn]=j; //j表示光点
-			nn++;
+			dblDist[i*intLightNum+j]= (dblCoorX[j] - dblZBCoorX[i])*(dblCoorX[j] - dblZBCoorX[i])
+					+ (dblCoorY[j] - dblZBCoorY[i])*(dblCoorY[j] - dblZBCoorY[i]);
+			if(dblDist[i*intLightNum+j]<dblMaxDouble1)
+			{
+				dblDist1[nn]=dblDist[i*intLightNum+j];
+				dblDistM[nn]=i; //i表示单元
+				dblDistN[nn]=j; //j表示光点
+				nn++;
+			}
 		}
 	}
 	//sort dblDist1  //这个就是根据dblDist1排序

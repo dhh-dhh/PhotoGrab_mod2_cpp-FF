@@ -118,6 +118,7 @@ protected:
 	int		intNeedFile;
 	int		intUnitNum;					//实际单元数，有效光点数
 	int		intSolidNum;				//实际Q单元数，有效光点数
+	int		intQNum0;
 	int		intQNum;				//参考单元数
 	int		intPNum;				//工作单元数
 	int		intLightNum;				//实际找到的点数
